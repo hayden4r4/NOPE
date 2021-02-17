@@ -1,27 +1,14 @@
 from tda.client import Client
-from tda.streaming import StreamClient
 from tda.auth import easy_client
 from tda import auth
 import TDAapikit as tdkit
-import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
-import io
 import os
 from datetime import datetime
-from datetime import date
-import time
-from streamz import Stream
-from streamz.dataframe import DataFrame as sDataFrame
-from streamz.dataframe import PeriodicDataFrame as pDataFrame
-import hvplot
-import asyncio
-import atexit
 import json
 import itertools
-import dask.dataframe as dd
 from pprint import pprint
-from bokeh.models.formatters import DatetimeTickFormatter
 
 
 
@@ -73,7 +60,6 @@ c = easy_client(consumer_key,
                         redirect_uri,
                         token_path,
                         make_webdriver)
-stream_client = StreamClient(c, account_id=account_id)
 
 
 market_hours=c.get_hours_for_single_market(Client.Markets.OPTION, date=datetime.strptime(today_yfirst, '%Y-%m-%d').date())
