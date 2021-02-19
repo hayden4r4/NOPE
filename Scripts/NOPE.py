@@ -7,8 +7,6 @@ import numpy as np
 import os
 from datetime import datetime
 from datetime import date
-from streamz import Stream
-from streamz.dataframe import PeriodicDataFrame as pDataFrame
 import hvplot
 import asyncio
 import atexit
@@ -55,9 +53,6 @@ for ticker in equity_tickers:
         os.makedirs(put_option_chain_directory + fr'\{ticker}')
     if not os.path.exists(quote_directory + fr'\{ticker}'):
         os.makedirs(quote_directory + fr'\{ticker}')
-
-# Sets Streamz Object
-stream=Stream()
 
 # Opens TD Ameritrade Account Info and Sets Webdriver Path for Selenium
 account_id=open(r'C:\Python\API Keys\TD\TD_ACCOUNT_ID.txt').read()
