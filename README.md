@@ -6,3 +6,8 @@ A python script which calculates the NOPE &amp; NOPE_MAD for given equities usin
 TO-DO:  
 Add function for NOPE_MAD calculation  
 Add option to save data to postgresql rather than CSV files
+  
+  
+  
+td-api Package : https://github.com/alexgolec/tda-api  
+EOD NOPE Research: https://www.scribd.com/document/487296659/Investigating-Delta-Gamma-Hedging-Impact-on-SPY-Returns-2007-2020
