@@ -3,5 +3,5 @@ A python script which calculates the NOPE &amp; NOPE_MAD for given equities usin
 
 
 TO-DO:
-Add function for NOPE_MAD calculation
+Add function for NOPE_MAD calculation  
 Add option to save data to postgresql rather than CSV files
