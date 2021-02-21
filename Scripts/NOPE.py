@@ -7,12 +7,9 @@ import numpy as np
 import os
 from datetime import datetime
 from datetime import date
-import hvplot
 import asyncio
 import atexit
 import json
-import itertools
-from pprint import pprint
 import pandas_market_calendars as mcal
 
 
