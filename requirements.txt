@@ -1,0 +1,5 @@
+pandas==1.1.5
+selenium==3.141.0
+tda_api==1.1.5
+pandas_market_calendars==1.6.1
+numpy==1.19.0
