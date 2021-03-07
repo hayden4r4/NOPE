@@ -24,9 +24,9 @@ nyse = mcal.get_calendar('NYSE')
 market_cal_today = nyse.schedule(start_date = today, end_date = today, tz = 'America/Chicago')
 
 # Checks if Market is Open Today, if Closed then Script Exits
-# if market_cal_today.empty == True:
-#     import sys
-#     sys.exit('Market is Close Today')
+if market_cal_today.empty == True:
+     import sys
+     sys.exit('Market is Close Today')
 
 # Directory to Save Data to
 directory=r'A:\Stock Data'
