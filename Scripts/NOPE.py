@@ -7,6 +7,7 @@ from datetime import datetime
 import atexit
 import json
 import itertools
+import threading
 import pandas_market_calendars as mcal
 
 
@@ -23,9 +24,9 @@ nyse = mcal.get_calendar('NYSE')
 market_cal_today = nyse.schedule(start_date = today, end_date = today, tz = 'America/Chicago')
 
 # Checks if Market is Open Today, if Closed then Script Exits
-if market_cal_today.empty == True:
-    import sys
-    sys.exit('Market is Close Today')
+# if market_cal_today.empty == True:
+#     import sys
+#     sys.exit('Market is Close Today')
 
 # Directory to Save Data to
 directory=r'A:\Stock Data'
@@ -90,10 +91,8 @@ def options_chain_cleaner(options_chain, only_type=False):
     i.e. calls, puts = func('file.csv')
     """
     
-    options_chain_unfor_df=pd.DataFrame(options_chain.json())
-    
     if only_type == 'Calls':
-        Calls = options_chain_unfor_df['callExpDateMap']
+        Calls = options_chain['callExpDateMap'].values()
         call_option_list = []
         for i in Calls:
             for j in i.values():
@@ -104,7 +103,7 @@ def options_chain_cleaner(options_chain, only_type=False):
         return Calls_df
     
     elif only_type == 'Puts':
-        Puts = options_chain_unfor_df['putExpDateMap']
+        Puts = options_chain['putExpDateMap'].values()
         put_option_list = []
         for i in Puts:
             for j in i.values():
@@ -115,8 +114,8 @@ def options_chain_cleaner(options_chain, only_type=False):
         return Puts_df
     
     elif only_type == False:
-        Puts=options_chain_unfor_df['putExpDateMap']
-        Calls=options_chain_unfor_df['callExpDateMap']
+        Puts=options_chain['putExpDateMap'].values()
+        Calls=options_chain['callExpDateMap'].values()
         
         call_option_list = []
         for i in Calls:
@@ -146,7 +145,7 @@ call_chains = {}
 put_chains = {}
 equity_quotes = {}
 
-def get_option_chains():
+def get_option_chains(ticker):
     """
     Gets option chains for specified symbols
     using given ticker symbol list named
@@ -154,13 +153,22 @@ def get_option_chains():
     as {'Ticker Symbol' : call chain in DataFrame},
     {'Ticker Symbol' : put chain in DataFrame}
     """
+    
+    options_chain = c.get_option_chain(symbol=ticker, strike_range=c.Options.StrikeRange.ALL)
+    calls_chain, puts_chain = options_chain_cleaner(options_chain.json())
+    calls_chain['Date'] = today
+    puts_chain['Date'] = today
+    call_chains[ticker] = calls_chain[calls_chain['delta'] != -999.0]
+    put_chains[ticker] = puts_chain[puts_chain['delta'] != -999.0]
+thread_list=[]
+def get_option_chains_threader():
     for ticker in equity_tickers:
-        options_chain = c.get_option_chain(symbol=ticker, strike_range=c.Options.StrikeRange.ALL)
-        calls_chain, puts_chain = options_chain_cleaner(options_chain)
-        calls_chain['Date'] = today
-        puts_chain['Date'] = today
-        call_chains[ticker] = calls_chain[calls_chain['delta'] != -999.0]
-        put_chains[ticker] = puts_chain[puts_chain['delta'] != -999.0]
+        threadProcess = threading.Thread(name='simplethread', target=get_option_chains, args=[ticker])
+        thread_list.append(threadProcess)
+    for thread in thread_list:
+        thread.start()
+    for thread in thread_list:
+        thread.join()
 
 
 def chain_to_csv():
@@ -176,16 +184,24 @@ def chain_to_csv():
         put_chains[ticker].to_csv(fr'{put_option_chains_directory}\{ticker} Put Option Chains.csv', mode = 'a', header = not os.path.exists(fr'{put_option_chains_directory}\{ticker} Put Option Chains.csv'))
 
 
-def get_quotes():
+def get_quotes(ticker):
     """
     Gets quotes for specified equities
     using given ticker symbol list named
     equity_tickers. Appends to dictionary
     as {'Ticker Symbol' : quote in DataFrame}.
     """
+    quotes = c.get_quotes(symbols=ticker)
+    equity_quotes[ticker]=pd.DataFrame(quotes.json()).T
+thread_list2=[]
+def get_quotes_threader():
     for ticker in equity_tickers:
-        quotes = c.get_quotes(symbols=ticker)
-        equity_quotes[ticker]=pd.DataFrame(quotes.json()).T
+        threadProcess = threading.Thread(name='simplethread', target=get_quotes, args=[ticker])
+        thread_list2.append(threadProcess)
+    for thread in thread_list2:
+        thread.start()
+    for thread in thread_list2:
+        thread.join()
 
 def quote_to_csv():
     """
@@ -223,9 +239,9 @@ def high_option_checker(option_volume: list or int or float, share_volume: int):
 
 
 # Run Functions to Grab Data and Save to CSV in Organized Folders
-get_option_chains()
+get_option_chains_threader()
 chain_to_csv()
-get_quotes()
+get_quotes_threader()
 quote_to_csv()
 
 
