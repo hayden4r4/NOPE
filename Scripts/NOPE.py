@@ -205,8 +205,8 @@ def NOPE(call_volumes: float or int, put_volumes: float or int, call_deltas: flo
     and deltas as pandas Series and
     share volume as int.
     """
-    result = (np.nansum(((call_volumes*call_deltas).values-(put_volumes*abs(put_deltas)).values)))/share_volume
-    return result * 10000
+    result = (sum((((call_volumes*100).mul(call_deltas*100, fill_value=0)).values-((put_volumes*100).mul(abs(put_deltas*100), fill_value=0)).values)))/share_volume
+    return result
 
 
 
