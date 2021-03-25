@@ -9,17 +9,19 @@ import json
 import itertools
 import threading
 import pandas_market_calendars as mcal
+from pprint import pprint
+from sqlalchemy import create_engine
+import psycopg2 as pg
 
 
 # Set Tickers to Pull Data For
 equity_tickers = ['SPY', 'PSTH', 'AMD', 'THCB', 'APHA', 'QQQ', 'AAPL', 'PLTR', 'TSM']
 
 # Get Current Date for Both Folder Organization and Getting Market Calendar
-today = datetime.now().strftime('%m-%d-%Y')
-today_yfirst = datetime.now().strftime('%Y-%m-%d')
+today = datetime.now().strftime('%Y-%m-%d')
 
 # Gets NYSE Market Calendar for Current Day
-# 
+
 nyse = mcal.get_calendar('NYSE')
 market_cal_today = nyse.schedule(start_date = today, end_date = today, tz = 'America/Chicago')
 
@@ -28,40 +30,16 @@ if market_cal_today.empty == True:
      import sys
      sys.exit('Market is Close Today')
 
-# Directory to Save Data to
-directory=r'A:\Stock Data'
+engine = create_engine('postgresql://haydenrose@localhost:5432/stock_data')
 
-# Creates Folder in Specified Directory if it Doesn't Already Exist
-if not os.path.exists(directory):
-    os.makedirs(directory)
-
-# Directories to Save Data to, Organized by Call, Put, or Quote
-call_option_chains_directory = fr'{directory}\Call Option Chains'
-put_option_chains_directory = fr'{directory}\Put Option Chains'
-quotes_directory = fr'{directory}\Quotes'
-optioned_directory = fr'{directory}\Optioned Values'
-NOPE_directory = fr'{directory}\NOPE Values'
-
-# Creates Folders in Specified Directories if They Don't Already Exist
-for ticker in equity_tickers:
-    if not os.path.exists(call_option_chains_directory):
-        os.makedirs(call_option_chains_directory) 
-    if not os.path.exists(put_option_chains_directory):
-        os.makedirs(put_option_chains_directory)
-    if not os.path.exists(quotes_directory):
-        os.makedirs(quotes_directory)
-    if not os.path.exists(optioned_directory):
-        os.makedirs(optioned_directory)
-    if not os.path.exists(NOPE_directory):
-        os.makedirs(NOPE_directory)
 
 
 # Opens TD Ameritrade Account Info and Sets Webdriver Path for Selenium
-account_id=open(r'C:\Python\API Keys\TD\TD_ACCOUNT_ID.txt').read()
-consumer_key=open(r'C:\Python\API Keys\TD\TD_CONSUMER_KEY.txt').read()
+account_id=open(r'/Users/haydenrose/Python/API Keys/TD/TD_ACCOUNT_ID.txt').read()
+consumer_key=open(r'/Users/haydenrose/Python/API Keys/TD/TD_CONSUMER_KEY.txt').read()
 redirect_uri='http://localhost'
-token_path=r'C:\Python\API Keys\TD\ameritrade-credentials.json'
-geckodriver_path=r'C:\Webdrivers\geckodriver.exe'
+token_path=r'/Users/haydenrose/Python/API Keys/TD/ameritrade-credentials.json'
+geckodriver_path=r'/Users/haydenrose/Webdrivers/geckodriver'
 
 # Creates Webdriver for Selenium
 def make_webdriver():
@@ -87,10 +65,10 @@ def options_chain_cleaner(options_chain, only_type=False):
     Specify only_type='Calls' or 'Puts' if only wanting one or other,
     specify False if wanting both and 2 dataframes will be returned,
     calls first and puts second.
-    
+
     i.e. calls, puts = func('file.csv')
     """
-    
+
     if only_type == 'Calls':
         Calls = options_chain['callExpDateMap'].values()
         call_option_list = []
@@ -101,7 +79,7 @@ def options_chain_cleaner(options_chain, only_type=False):
         Calls_df = pd.DataFrame(call_option_list)
         Calls_df.set_index('description', inplace=True)
         return Calls_df
-    
+
     elif only_type == 'Puts':
         Puts = options_chain['putExpDateMap'].values()
         put_option_list = []
@@ -112,11 +90,11 @@ def options_chain_cleaner(options_chain, only_type=False):
         Puts_df = pd.DataFrame(put_option_list)
         Puts_df.set_index('description', inplace=True)
         return Puts_df
-    
+
     elif only_type == False:
         Puts=options_chain['putExpDateMap'].values()
         Calls=options_chain['callExpDateMap'].values()
-        
+
         call_option_list = []
         for i in Calls:
             for j in i.values():
@@ -124,7 +102,7 @@ def options_chain_cleaner(options_chain, only_type=False):
                     call_option_list.append(k)
         Calls_df=pd.DataFrame(call_option_list)
         Calls_df.set_index('description', inplace=True)
-        
+
         put_option_list = []
         for i in Puts:
             for j in i.values():
@@ -132,9 +110,9 @@ def options_chain_cleaner(options_chain, only_type=False):
                     put_option_list.append(k)
         Puts_df = pd.DataFrame(put_option_list)
         Puts_df.set_index('description', inplace=True)
-        
+
         return Calls_df, Puts_df
-        
+
     else:
         raise ValueError('Incorrect only_type value')
 
@@ -156,10 +134,12 @@ def get_option_chains(ticker):
     
     options_chain = c.get_option_chain(symbol=ticker, strike_range=c.Options.StrikeRange.ALL)
     calls_chain, puts_chain = options_chain_cleaner(options_chain.json())
-    calls_chain['Date'] = today
-    puts_chain['Date'] = today
+    calls_chain['date'] = today
+    puts_chain['date'] = today
     call_chains[ticker] = calls_chain[calls_chain['delta'] != -999.0]
     put_chains[ticker] = puts_chain[puts_chain['delta'] != -999.0]
+
+    
 thread_list=[]
 def get_option_chains_threader():
     for ticker in equity_tickers:
@@ -170,20 +150,6 @@ def get_option_chains_threader():
     for thread in thread_list:
         thread.join()
 
-
-def chain_to_csv():
-    """
-    Stores option chains to csv using given
-    ticker symbol list named equity_tickers
-    to name.  Saves with filename:
-    {'Ticker Symbol'} Call Option Chain.csv or
-    {'Ticker Symbol'} Put Option Chain.csv
-    """
-    for ticker in equity_tickers:
-        call_chains[ticker].to_csv(fr'{call_option_chains_directory}\{ticker} Call Option Chains.csv', mode = 'a', header = not os.path.exists(fr'{call_option_chains_directory}\{ticker} Call Option Chains.csv'))
-        put_chains[ticker].to_csv(fr'{put_option_chains_directory}\{ticker} Put Option Chains.csv', mode = 'a', header = not os.path.exists(fr'{put_option_chains_directory}\{ticker} Put Option Chains.csv'))
-
-
 def get_quotes(ticker):
     """
     Gets quotes for specified equities
@@ -191,8 +157,11 @@ def get_quotes(ticker):
     equity_tickers. Appends to dictionary
     as {'Ticker Symbol' : quote in DataFrame}.
     """
-    quotes = c.get_quotes(symbols=ticker)
-    equity_quotes[ticker]=pd.DataFrame(quotes.json()).T
+    quotes = c.get_quotes(symbols = ticker)
+    equity_quotes[ticker] = pd.DataFrame(quotes.json()).T
+    equity_quotes[ticker].drop(columns = ['52WkHigh', '52WkLow'], inplace = True)
+    equity_quotes[ticker].replace({'': np.nan, ' ': np.nan}, inplace = True)
+    
 thread_list2=[]
 def get_quotes_threader():
     for ticker in equity_tickers:
@@ -202,17 +171,6 @@ def get_quotes_threader():
         thread.start()
     for thread in thread_list2:
         thread.join()
-
-def quote_to_csv():
-    """
-    Stores quotes to csv using given
-    ticker symbol list named equity_tickers
-    to name.  Saves with filename:
-    {'Ticker Symbol'} Quote.csv
-    """
-    for ticker in equity_tickers:
-        equity_quotes[ticker].to_csv(fr'{quotes_directory}\{ticker} Quotes.csv', mode = 'a', header = not os.path.exists(fr'{quotes_directory}\{ticker} Quotes.csv'))
-
 
 
 def NOPE(call_volumes: float or int, put_volumes: float or int, call_deltas: float, put_deltas: float, share_volume: float or int):
@@ -237,64 +195,80 @@ def high_option_checker(option_volume: list or int or float, share_volume: int):
     result = np.nansum(option_volume)*100/share_volume
     return result
 
-
-# Run Functions to Grab Data and Save to CSV in Organized Folders
-get_option_chains_threader()
-chain_to_csv()
-get_quotes_threader()
-quote_to_csv()
-
-
 # Set Dictionary for Call, Put, Share Volume and Delta Data
 call_deltas={}
 put_deltas={}
+
 call_volumes={}
 put_volumes={}
 share_volume = {}
-# Appends Call, Put, Share Volume and Delta to Dictionaries
-# with format {'Ticker Symbol' : option delta or volume as series or share volume as int}
-for ticker in equity_tickers:
-    call_deltas[ticker] = call_chains[ticker]['delta'].astype(float)
-    put_deltas[ticker] = put_chains[ticker]['delta'].astype(float)
-    call_volumes[ticker] = call_chains[ticker]['totalVolume'].astype(float)
-    put_volumes[ticker] = put_chains[ticker]['totalVolume'].astype(float)
-    share_volume[ticker] = int(equity_quotes[ticker]['totalVolume'])
 
-
-# Finds NOPE Value Using Function and Appends to Dictionary
-# With Format {'Ticker Symbol' : NOPE value} 
-for ticker in equity_tickers: 
-    NOPE_value = NOPE(call_deltas = call_deltas[ticker],
-                    put_deltas = put_deltas[ticker],
-                    call_volumes = call_volumes[ticker],
-                    put_volumes = put_volumes[ticker],
-                    share_volume = share_volume[ticker])
-    NOPE_valuedf = pd.DataFrame(NOPE_value, index=[today], columns=['NOPE Value'])
-    NOPE_valuedf['Symbol'] = ticker
-    NOPE_valuedf.to_csv(fr'{NOPE_directory}\{ticker} NOPE Values.csv', mode = 'a', header = not os.path.exists(fr'{NOPE_directory}\{ticker} NOPE Values.csv'))
-
-# Sets Dictionaries for Total Sums of Call, Put Delta and Volume
 call_delta_sum = {}
-call_volume_sum = {}
 put_delta_sum = {}
+
+call_volume_sum = {}
 put_volume_sum = {}
-# Solves for Total Sums of Call, Put Delta and Volume
-# and Appends to Dictionaries with format
-# {'Ticker Symbol' : option delta or volume}
-for ticker in equity_tickers:
-    call_delta_sum[ticker]=call_chains[ticker]['delta'].astype(float).sum()
-    call_volume_sum[ticker]=call_chains[ticker]['totalVolume'].astype(float).sum()
-    put_delta_sum[ticker]=put_chains[ticker]['delta'].astype(float).sum()
-    put_volume_sum[ticker]=put_chains[ticker]['totalVolume'].astype(float).sum()
+
+def delta_volumes():
+    # Appends Call, Put, Share Volume and Delta to Dictionaries
+    # with format {'Ticker Symbol' : option delta or volume as series or share volume as int}
+    for ticker in equity_tickers:
+        call_deltas[ticker] = call_chains[ticker]['delta'].astype(float)
+        put_deltas[ticker] = put_chains[ticker]['delta'].astype(float)
+
+        call_volumes[ticker] = call_chains[ticker]['totalVolume'].astype(float)
+        put_volumes[ticker] = put_chains[ticker]['totalVolume'].astype(float)
+        share_volume[ticker] = int(equity_quotes[ticker]['totalVolume'])
+
+        call_delta_sum[ticker]=call_chains[ticker]['delta'].astype(float).sum()
+        put_delta_sum[ticker]=put_chains[ticker]['delta'].astype(float).sum()
+
+        call_volume_sum[ticker]=call_chains[ticker]['totalVolume'].astype(float).sum()
+        put_volume_sum[ticker]=put_chains[ticker]['totalVolume'].astype(float).sum()
 
 
-# Runs Function to Determine the Optioned Rate and append
-# to Dictionary with Form {'Ticker Symbol' : optioned rate}
-for ticker in equity_tickers:
-    optioned_valuesdf = pd.DataFrame(high_option_checker(option_volume = [call_volume_sum[ticker], put_volume_sum[ticker]],
-                                                        share_volume = share_volume[ticker]),
-                                        index = [today],
-                                        columns = ['Optioned Value'])
-    optioned_valuesdf['Date'] = today
-    optioned_valuesdf['Symbol'] = ticker
-    optioned_valuesdf.to_csv(fr'{optioned_directory}\{ticker} Optioned Values.csv', mode = 'a', header = not os.path.exists(fr'{optioned_directory}\{ticker} Optioned Values.csv'))
+def _to_sql():
+    """
+    Stores option chains to csv using given
+    ticker symbol list named equity_tickers
+    to name.  Saves with filename:
+    {'Ticker Symbol'} Call Option Chain.csv or
+    {'Ticker Symbol'} Put Option Chain.csv
+    """
+    for ticker in equity_tickers:
+        call_chain_to_sql = call_chains[ticker].copy()
+        call_chain_to_sql.columns = call_chain_to_sql.columns.str.lower()
+        call_chain_to_sql.to_sql('option_chains', con = engine, if_exists = 'append')
+        
+        put_chain_to_sql = put_chains[ticker].copy()
+        put_chain_to_sql.columns = put_chain_to_sql.columns.str.lower()
+        put_chain_to_sql.to_sql('option_chains', con = engine, if_exists = 'append')
+        
+        equity_quotes_to_sql = equity_quotes[ticker].copy()
+        equity_quotes_to_sql.columns = equity_quotes_to_sql.columns.str.lower()
+        equity_quotes_to_sql.to_sql('equity_quotes', con = engine, if_exists = 'append', index = False)
+        
+        # Finds NOPE Value Using Function and Appends to Dictionary
+        # With Format {'Ticker Symbol' : NOPE value} 
+        NOPE_value = NOPE(call_deltas = call_deltas[ticker],
+                        put_deltas = put_deltas[ticker],
+                        call_volumes = call_volumes[ticker],
+                        put_volumes = put_volumes[ticker],
+                        share_volume = share_volume[ticker])
+        
+        # Runs Function to Determine the Optioned Rate and append
+        # to Dictionary with Form {'Ticker Symbol' : optioned rate}
+        optionality = high_option_checker(option_volume = [call_volume_sum[ticker], put_volume_sum[ticker]],
+                                                            share_volume = share_volume[ticker])
+        #Creates dataframe with NOPE, optionality, and date
+        data = {'nopevalue': NOPE_value, 'optionality': optionality, 'symbol': ticker, 'date': today}
+        NOPE_valuedf = pd.DataFrame(data, index = [0])
+        
+        #Saves to SQL table
+        NOPE_to_sql = NOPE_valuedf
+        NOPE_to_sql.to_sql('nope_values', con = engine, if_exists = 'append', index = False)
+
+get_option_chains_threader()
+get_quotes_threader()
+delta_volumes()
+_to_sql()
